@@ -1,4 +1,6 @@
-/*
+/**
+ * @file quaternion.cpp
+ * @brief 四元数操作实现文件，用于处理分子旋转变换
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -22,10 +24,23 @@
 
 #include "quaternion.h"
 
+/**
+ * @brief 检查四元数是否已归一化
+ * @param q 待检查的四元数
+ * @return true 如果四元数已归一化
+ * @note 用于断言检查，确保四元数模长为1
+ */
 bool quaternion_is_normalized(const qt& q) { // not in the interface, used in assertions
 	return eq(quaternion_norm_sqr(q), 1) && eq(boost::math::abs(q), 1);
 }
 
+/**
+ * @brief 逐元素比较两个四元数是否近似相等
+ * @param a 第一个四元数
+ * @param b 第二个四元数
+ * @return true 如果所有对应分量都近似相等
+ * @note 可能对等价旋转返回false（因为四元数表示旋转的双重性）
+ */
 bool eq(const qt& a, const qt& b) { // elementwise approximate equality - may return false for equivalent rotations
 	return eq(a.R_component_1(), b.R_component_1()) && \
 		   eq(a.R_component_2(), b.R_component_2()) && \
@@ -33,6 +48,13 @@ bool eq(const qt& a, const qt& b) { // elementwise approximate equality - may re
 		   eq(a.R_component_4(), b.R_component_4());
 }
 
+/**
+ * @brief 从旋转轴和角度创建四元数
+ * @param axis 旋转轴（假设为单位向量）
+ * @param angle 旋转角度（弧度）
+ * @return 对应的四元数
+ * @note 使用公式 q = [cos(θ/2), sin(θ/2)*axis]
+ */
 qt angle_to_quaternion(const vec& axis, fl angle) { // axis is assumed to be a unit vector
 	//assert(eq(tvmet::norm2(axis), 1));
 	assert(eq(axis.norm(), 1));
@@ -42,6 +64,12 @@ qt angle_to_quaternion(const vec& axis, fl angle) { // axis is assumed to be a u
 	return qt(c, s*axis[0], s*axis[1], s*axis[2]);
 }
 
+/**
+ * @brief 从旋转向量创建四元数
+ * @param rotation 旋转向量（旋转轴方向 × 旋转角度）
+ * @return 对应的四元数
+ * @note 旋转向量的模长为旋转角度，方向为旋转轴
+ */
 qt angle_to_quaternion(const vec& rotation) {
 	//fl angle = tvmet::norm2(rotation); 
 	fl angle = rotation.norm(); 
@@ -54,24 +82,36 @@ qt angle_to_quaternion(const vec& rotation) {
 	return qt_identity;
 }
 
+/**
+ * @brief 将四元数转换为旋转向量表示
+ * @param q 输入的归一化四元数
+ * @return 旋转向量（轴角表示）
+ * @note 旋转向量的模长为旋转角度，方向为旋转轴
+ */
 vec quaternion_to_angle(const qt& q) {
-	assert(quaternion_is_normalized(q));
-	const fl c = q.R_component_1();
-	if(c > -1 && c < 1) { // c may in theory be outside [-1, 1] even with approximately normalized q, due to rounding errors
-		fl angle = 2*std::acos(c); // acos is in [0, pi]
-		if(angle > pi)
-			angle -= 2*pi; // now angle is in [-pi, pi]
-		vec axis(q.R_component_2(), q.R_component_3(), q.R_component_4());
-		fl s = std::sin(angle/2); // perhaps not very efficient to calculate sin of acos
-		if(std::abs(s) < epsilon_fl)
-			return zero_vec;
-		axis *= (angle / s);
-		return axis;
-	}
-	else // when c = -1 or 1, angle/2 = 0 or pi, therefore angle = 0
-		return zero_vec;
+    assert(quaternion_is_normalized(q));
+    const fl c = q.R_component_1(); // 四元数的实部 w = cos(θ/2)
+    if(c > -1 && c < 1) { // c理论上应在[-1,1]内，但由于舍入误差可能超出
+        fl angle = 2*std::acos(c); // acos返回[0, π]
+        if(angle > pi)
+            angle -= 2*pi; // 将角度限制在[-π, π]
+        vec axis(q.R_component_2(), q.R_component_3(), q.R_component_4()); // 虚部xyz
+        fl s = std::sin(angle/2); // 重新计算sin可能不够高效
+        if(std::abs(s) < epsilon_fl)
+            return zero_vec; // 零旋转情况
+        axis *= (angle / s); // 恢复原始旋转向量
+        return axis;
+    }
+    else // 当c = -1或1时，angle/2 = 0或π，因此angle = 0
+        return zero_vec;
 }
 
+/**
+ * @brief 将四元数转换为3x3旋转矩阵
+ * @param q 输入的归一化四元数
+ * @return 对应的旋转矩阵
+ * @note 使用标准的四元数到旋转矩阵转换公式
+ */
 mat quaternion_to_r3(const qt& q) {
 	assert(quaternion_is_normalized(q));
 
@@ -111,6 +151,12 @@ mat quaternion_to_r3(const qt& q) {
 	return tmp;
 }
 
+/**
+ * @brief 生成随机的单位四元数（均匀分布在旋转空间）
+ * @param generator 随机数生成器
+ * @return 随机的归一化四元数
+ * @note 使用高斯分布生成四个分量，然后归一化
+ */
 qt random_orientation(rng& generator) {
 	qt q(random_normal(0, 1, generator), 
 		 random_normal(0, 1, generator), 
@@ -126,6 +172,12 @@ qt random_orientation(rng& generator) {
 		return random_orientation(generator); // this call should almost never happen
 }
 
+/**
+ * @brief 对四元数应用增量旋转
+ * @param q 要修改的四元数（引用传递）
+ * @param rotation 增量旋转向量
+ * @note 计算 q = rotation_quaternion * q，并重新归一化
+ */
 void quaternion_increment(qt& q, const vec& rotation) {
 	assert(quaternion_is_normalized(q));
 	q = angle_to_quaternion(rotation) * q;
@@ -133,6 +185,13 @@ void quaternion_increment(qt& q, const vec& rotation) {
 	//quaternion_normalize(q); // normalization added in 1.1.2
 }
 
+/**
+ * @brief 计算从四元数a到四元数b所需的旋转
+ * @param b 目标四元数
+ * @param a 起始四元数
+ * @return 从a转换到b所需的旋转向量
+ * @note 计算 b * inv(a) 得到差分旋转
+ */
 vec quaternion_difference(const qt& b, const qt& a) { // rotation that needs to be applied to convert a to b
 	quaternion_is_normalized(a);
 	quaternion_is_normalized(b);
@@ -141,6 +200,11 @@ vec quaternion_difference(const qt& b, const qt& a) { // rotation that needs to 
 	return quaternion_to_angle(tmp); // already assert normalization
 }
 
+/**
+ * @brief 将四元数以角度形式打印输出
+ * @param q 要打印的四元数
+ * @param out 输出流
+ */
 void print(const qt& q, std::ostream& out) { // print as an angle
 	print(quaternion_to_angle(q), out);
 }

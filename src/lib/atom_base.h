@@ -25,16 +25,36 @@
 
 #include "atom_type.h"
 
+/**
+ * @brief 原子基础类
+ * 
+ * 继承自atom_type类，添加了电荷属性。
+ * 作为更复杂原子类的基类，提供基本的原子信息存储功能。
+ */
 struct atom_base : public atom_type {
-	fl charge;
-	atom_base() : charge(0) {}
+    fl charge;  ///< 原子电荷(原子单位)
+
+    /**
+     * @brief 默认构造函数
+     * 
+     * 初始化电荷为0，原子类型通过父类构造函数初始化为未分配状态
+     */
+    atom_base() : charge(0) {}
+
 private:
-	friend class boost::serialization::access;
-	template<class Archive> 
-	void serialize(Archive& ar, const unsigned version) {
-		ar & boost::serialization::base_object<atom_type>(*this);
-		ar & charge;
-	}
+    friend class boost::serialization::access;
+
+    /**
+     * @brief 序列化函数，用于boost序列化支持
+     * @param ar 序列化归档对象
+     * @param version 版本号(未使用)
+     * @note 先序列化父类atom_type，再序列化自身的charge属性
+     */
+    template<class Archive> 
+    void serialize(Archive& ar, const unsigned version) {
+        ar & boost::serialization::base_object<atom_type>(*this);
+        ar & charge;
+    }
 };
 
 #endif
