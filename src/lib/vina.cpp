@@ -59,39 +59,56 @@ int Vina::generate_seed(const int seed) {
 	}
 }
 
+/**
+ * @brief 设置受体分子
+ * 
+ * 读取并验证受体PDBQT文件，支持刚性受体和柔性残基的组合。
+ * 根据不同的评分函数(Vina/AD4)执行相应的验证逻辑。
+ * 
+ * @param rigid_name 刚性受体文件名
+ * @param flex_name 柔性残基文件名
+ * 
+ * @note 支持7种不同的条件组合：
+ * - 条件1: Vina评分且无受体文件 -> 失败
+ * - 条件2-3: AD4评分且有刚性受体 -> 失败
+ * - 条件4,5,6,7: 其他组合 -> 成功
+ */
 void Vina::set_receptor(const std::string& rigid_name, const std::string& flex_name) {
-	// Read the receptor PDBQT file
-	/* CONDITIONS:
-		- 1. AD4/Vina rigid  NO, flex  NO: FAIL
-		- 2. AD4      rigid YES, flex YES: FAIL
-		- 3. AD4      rigid YES, flex  NO: FAIL
-		- 4. AD4      rigid  NO, flex YES: SUCCESS (need to read maps later)
-		- 5. Vina     rigid YES, flex YES: SUCCESS
-		- 6. Vina     rigid YES, flex  NO: SUCCESS
-		- 7. Vina     rigid  NO, flex YES: SUCCESS (need to read maps later)
-	*/
+    // 读取受体PDBQT文件
+    /* 条件判断:
+        - 1. AD4/Vina 刚性 否, 柔性 否: 失败
+        - 2. AD4      刚性 是, 柔性 是: 失败
+        - 3. AD4      刚性 是, 柔性 否: 失败
+        - 4. AD4      刚性 否, 柔性 是: 成功 (需要稍后读取地图)
+        - 5. Vina     刚性 是, 柔性 是: 成功
+        - 6. Vina     刚性 是, 柔性 否: 成功
+        - 7. Vina     刚性 否, 柔性 是: 成功 (需要稍后读取地图)
+    */
 	if (rigid_name.empty() && flex_name.empty() && m_sf_choice == SF_VINA) {
-		// CONDITION 1
+        // 条件1
 		std::cerr << "ERROR: No (rigid) receptor or flexible residues were specified. (vina.cpp)\n";
 		exit(EXIT_FAILURE);
 	} else if (m_sf_choice == SF_AD42 && !rigid_name.empty()) {
-		// CONDITIONS 2, 3
+        // 条件2, 3
 		std::cerr << "ERROR: Only flexible residues allowed with the AD4 scoring function. No (rigid) receptor.\n";
 		exit(EXIT_FAILURE);
 	}
 
-	// CONDITIONS 4, 5, 6, 7 (rigid_name and flex_name are empty strings per default)
+    // 条件4, 5, 6, 7 (rigid_name和flex_name默认为空字符串)
 	m_receptor = parse_receptor_pdbqt(rigid_name, flex_name, m_scoring_function->get_atom_typing());
 
 	m_model = m_receptor;
 	m_receptor_initialized = true;
-	// If we are reading another receptor we should not consider the ligand and the map as initialized anymore
+    // 如果我们读取另一个受体，就不应该再将配体和地图视为已初始化
 	m_ligand_initialized = false;
 	m_map_initialized = false;
 }
 
+/**
+ * @brief 从字符串设置配体分子
+ * @param ligand_string PDBQT格式的配体字符串
+ */
 void Vina::set_ligand_from_string(const std::string& ligand_string) {
-	// Read ligand PDBQT string and add it to the model
 	if (ligand_string.empty()) {
 		std::cerr << "ERROR: Cannot read ligand file. Ligand string is empty.\n";
 		exit(EXIT_FAILURE);
@@ -100,22 +117,22 @@ void Vina::set_ligand_from_string(const std::string& ligand_string) {
 	atom_type::t atom_typing = m_scoring_function->get_atom_typing();
 
 	if (!m_receptor_initialized) {
-		// This situation will happen if we don't need a receptor and we are using affinity maps
+		// 当我们不需要受体且使用亲和力地图时会出现这种情况
 		model m(atom_typing);
 		m_model = m;
 		m_receptor = m;
 	} else {
-		// Replace current model with receptor and reinitialize poses
+		// 用受体替换当前模型并重新初始化构象
 		m_model = m_receptor;
 	}
 
-	// ... and add ligand to the model
+	// 将配体添加到模型中
 	m_model.append(parse_ligand_pdbqt_from_string(ligand_string, atom_typing));
 
-	// Because we precalculate ligand atoms interactions
+	// 预计算配体原子相互作用
 	precalculate_byatom precalculated_byatom(*m_scoring_function, m_model);
 
-	// Check that all atom types are in the grid (if initialized)
+	// 检查所有原子类型是否在网格中(如果已初始化)
 	if (m_map_initialized) {
 		szv atom_types = m_model.get_movable_atom_types(atom_typing);
 
@@ -128,13 +145,17 @@ void Vina::set_ligand_from_string(const std::string& ligand_string) {
 		}
 	}
 
-	// Store in Vina object
+	// 存储在Vina对象中
 	output_container poses;
 	m_poses = poses;
 	m_precalculated_byatom = precalculated_byatom;
 	m_ligand_initialized = true;
 }
 
+/**
+ * @brief 从多个PDBQT字符串设置配体分子
+ * @param ligand_string PDBQT格式的配体字符串向量
+ */
 void Vina::set_ligand_from_string(const std::vector<std::string>& ligand_string) {
 	// Read ligand PDBQT strings and add them to the model
 	if (ligand_string.empty()) {
@@ -145,25 +166,27 @@ void Vina::set_ligand_from_string(const std::vector<std::string>& ligand_string)
 	atom_type::t atom_typing = m_scoring_function->get_atom_typing();
 
 	if (!m_receptor_initialized) {
-		// This situation will happen if we don't need a receptor and we are using affinity maps
+		// 当我们不需要受体且使用亲和力地图时会出现这种情况
 		model m(atom_typing);
 		m_model = m;
 		m_receptor = m;
 	} else {
-		// Replace current model with receptor and reinitialize poses
+		// 用受体替换当前模型并重新初始化构象
 		m_model = m_receptor;
 	}
 
 	VINA_RANGE(i, 0, ligand_string.size())
 		m_model.append(parse_ligand_pdbqt_from_string(ligand_string[i], atom_typing));
 
-	// Because we precalculate ligand atoms interactions
+	// 预计算配体原子相互作用
 	precalculate_byatom precalculated_byatom(*m_scoring_function, m_model);
 
-	// Check that all atom types are in the grid (if initialized)
+	// 检查所有原子类型是否在网格中(如果已初始化)
 	if (m_map_initialized) {
+		// 获取模型中所有可移动原子的类型
 		szv atom_types = m_model.get_movable_atom_types(atom_typing);
 
+		// 根据评分函数类型选择相应的网格进行验证
 		if (m_sf_choice == SF_VINA || m_sf_choice == SF_VINARDO) {
 			if(!m_grid.are_atom_types_grid_initialized(atom_types))
 				exit(EXIT_FAILURE);
@@ -180,10 +203,18 @@ void Vina::set_ligand_from_string(const std::vector<std::string>& ligand_string)
 	m_ligand_initialized = true;
 }
 
+/**
+ * @brief 从单个配体文件设置配体分子
+ * @param ligand_name 配体PDBQT文件路径
+ */
 void Vina::set_ligand_from_file(const std::string& ligand_name) {
 	set_ligand_from_string(get_file_contents(ligand_name));
 }
 
+/**
+ * @brief 从多个配体文件设置配体分子
+ * @param ligand_name 配体PDBQT文件路径向量
+ */
 void Vina::set_ligand_from_file(const std::vector<std::string>& ligand_name) {
 	std::vector<std::string> ligand_string;
 
@@ -215,6 +246,23 @@ void Vina::set_ligand(std::vector<OpenBabel::OBMol*> mol) {
 }
 */
 
+/**
+ * @brief 设置Vina评分函数的权重参数
+ * 
+ * 为Vina评分函数设置各项能量项的权重系数，包括高斯项、排斥项、
+ * 疏水相互作用、氢键、胶水项和旋转惩罚项。权重设置后会自动初始化力场。
+ * 
+ * @param weight_gauss1 高斯项1权重系数
+ * @param weight_gauss2 高斯项2权重系数  
+ * @param weight_repulsion 排斥项权重系数
+ * @param weight_hydrophobic 疏水相互作用权重系数
+ * @param weight_hydrogen 氢键相互作用权重系数
+ * @param weight_glue 胶水项权重系数(用于柔性残基)
+ * @param weight_rot 旋转键惩罚权重系数
+ * 
+ * @note 旋转权重经过特殊变换: 5 * weight_rot / 0.1 - 1
+ * @note 仅在当前评分函数为SF_VINA时生效
+ */
 void Vina::set_vina_weights(double weight_gauss1, double weight_gauss2, double weight_repulsion,
 							double weight_hydrophobic, double weight_hydrogen, double weight_glue,
 							double weight_rot) {
@@ -237,6 +285,22 @@ void Vina::set_vina_weights(double weight_gauss1, double weight_gauss2, double w
 	}
 }
 
+/**
+ * @brief 设置Vinardo评分函数的权重参数
+ * 
+ * 为Vinardo评分函数设置各项能量项的权重系数。Vinardo相比Vina减少了
+ * 一个高斯项，其他参数设置方式相同。
+ * 
+ * @param weight_gauss1 高斯项权重系数
+ * @param weight_repulsion 排斥项权重系数
+ * @param weight_hydrophobic 疏水相互作用权重系数
+ * @param weight_hydrogen 氢键相互作用权重系数
+ * @param weight_glue 胶水项权重系数
+ * @param weight_rot 旋转键惩罚权重系数
+ * 
+ * @note 相比Vina评分函数，Vinardo没有第二个高斯项
+ * @note 仅在当前评分函数为SF_VINARDO时生效
+ */
 void Vina::set_vinardo_weights(double weight_gauss1, double weight_repulsion,
 							   double weight_hydrophobic, double weight_hydrogen, double weight_glue,
 							   double weight_rot) {
@@ -258,6 +322,22 @@ void Vina::set_vinardo_weights(double weight_gauss1, double weight_repulsion,
 	}
 }
 
+/**
+ * @brief 设置AutoDock4评分函数的权重参数
+ * 
+ * 为AD4.2评分函数设置各项能量项的权重系数，包括范德华力、氢键、
+ * 静电相互作用、去溶剂化能、胶水项和旋转惩罚项。
+ * 
+ * @param weight_ad4_vdw 范德华相互作用权重系数
+ * @param weight_ad4_hb 氢键相互作用权重系数
+ * @param weight_ad4_elec 静电相互作用权重系数
+ * @param weight_ad4_dsolv 去溶剂化能权重系数
+ * @param weight_glue 胶水项权重系数
+ * @param weight_ad4_rot 旋转键惩罚权重系数
+ * 
+ * @note AD4评分函数与Vina系列评分函数的能量项组成不同
+ * @note 仅在当前评分函数为SF_AD42时生效
+ */
 void Vina::set_ad4_weights(double weight_ad4_vdw , double weight_ad4_hb,
 						   double weight_ad4_elec, double weight_ad4_dsolv,
 						   double weight_glue, double weight_ad4_rot) {
@@ -279,11 +359,30 @@ void Vina::set_ad4_weights(double weight_ad4_vdw , double weight_ad4_hb,
 	}
 }
 
+/**
+ * @brief 初始化ScoringFunction对象
+ */
 void Vina::set_forcefield() {
     // Store in Vina object
     m_scoring_function = std::make_shared<ScoringFunction>(m_sf_choice, m_weights);
 }
 
+/**
+ * @brief 根据配体分子自动计算网格盒子尺寸
+ * 
+ * 以配体的几何中心作为网格盒子中心，通过分析配体中所有可移动原子
+ * 的坐标分布，自动计算包围配体的最小网格盒子尺寸，并加上指定的缓冲区。
+ * 
+ * @param buffer_size 网格盒子边界的缓冲区大小(埃)
+ * @return std::vector<double> 包含6个元素的向量：[中心x, 中心y, 中心z, 尺寸x, 尺寸y, 尺寸z]
+ * 
+ * @note 算法流程：
+ * 1. 计算配体几何中心作为盒子中心
+ * 2. 遍历所有可移动原子，找出各维度上距离中心最远的原子
+ * 3. 网格尺寸 = 2 * (最大距离 + 缓冲区大小)，向上取整
+ * 
+ * @warning 需要确保配体已正确加载到模型中
+ */
 std::vector<double> Vina::grid_dimensions_from_ligand(double buffer_size) {
 	std::vector<double> box_dimensions(6, 0);
 	std::vector<double> box_center(3, 0);
