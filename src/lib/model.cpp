@@ -28,17 +28,10 @@
 #include "precalculate.h"
 
 /**
- * @brief 递归计算原子树结构的原子范围
- * 
- * 遍历分子树结构，找到所有原子的最小和最大索引，
- * 用于确定分子或分子片段覆盖的原子索引范围
- * 
+ * @brief 深度优先计算原子树结构的原子索引范围
  * @tparam T 支持node和children成员的树结构类型
  * @param t 待计算的树结构节点
  * @return atom_range 包含所有子节点原子的范围
- * 
- * @note 使用深度优先搜索遍历树结构
- * @note 函数会自动扩展范围以包含所有子节点的原子
  */
 template<typename T>
 atom_range get_atom_range(const T& t) {
@@ -54,10 +47,6 @@ atom_range get_atom_range(const T& t) {
 
 /**
  * @brief 分子分支的几何度量结构
- * 
- * 存储分子分支的两个重要几何参数：
- * - length: 分支的线性长度（最长路径）
- * - corner2corner: 分支的角到角距离（考虑分叉结构）
  */
 struct branch_metrics {
     sz length;         ///< 分支长度：从根到最远叶子节点的距离
@@ -150,13 +139,8 @@ sz model::ligand_length(sz ligand_number) const {
 }
 
 /**
- * @brief 设置配体的原子索引范围
- * 
- * 计算并设置当前配体对象覆盖的原子索引范围，
- * 通过遍历配体的树结构确定begin和end值
- * 
- * @note 这个方法通常在配体初始化或结构改变后调用
- * @note begin和end定义了配体在原子数组中的索引范围[begin, end)
+ * @brief 调用get_atom_range设置配体的原子索引范围
+ * @note 这个方法通常在配体初始化后调用
  */
 void ligand::set_range() {
     atom_range tmp = get_atom_range(*this);  // 获取配体的原子范围
@@ -471,39 +455,20 @@ void model::append(const model& m) {
 
 /////////////////// begin MODEL::INITIALIZE /////////////////////////
 
-/**
- * @brief 将大小索引转换为原子索引
- * 
- * 将连续的索引转换为区分网格原子和普通原子的atom_index结构。
- * 网格原子索引在前，普通原子索引在后。
- * 
- * @param i 连续的大小索引
- * @return atom_index 包含原子位置和类型信息的索引结构
- * 
- * @note 索引布局：[0, grid_atoms.size()) -> 网格原子
- *                [grid_atoms.size(), ∞) -> 普通原子
- */
+
 atom_index model::sz_to_atom_index(sz i) const {
     if(i < grid_atoms.size()) return atom_index(i                    ,  true);	// 网格原子
     else                      return atom_index(i - grid_atoms.size(), false);	// 普通原子
 }
 
 /**
- * @brief 确定两原子间的距离类型
+ * @brief 获取两个原子之间的距离类型
+ * @param mobility 移动性矩阵
+ * @param i 原子索引i
+ * @param j 原子索引j
  * 
- * 基于原子的位置（网格/普通）和移动性矩阵，确定两原子间距离的变化特性。
- * 这直接影响相互作用对的类型和能量计算方式。
- * 
- * @param mobility 移动性矩阵，定义原子间的相对移动关系
- * @param i 第一个原子的索引
- * @param j 第二个原子的索引
- * @return distance_type 距离类型（固定/转子/可变）
- * 
- * @note 距离类型决策规则：
- *       - 两个网格原子：固定距离
- *       - 网格原子与可移动原子：可变距离
- *       - 网格原子与不可移动原子：固定距离
- *       - 普通原子间：查询移动性矩阵
+ * @note 首先判断i和j是否有刚体中的不可移动原子，若是则只能返回DISTANCE_FIXED或DISTANCE_VARIABLE
+ * 若都不是刚体中的原子，则访问mobility矩阵获取它们之间的距离类型（在解析时确定）
  */
 distance_type model::distance_type_between(const distance_type_matrix& mobility, const atom_index& i, const atom_index& j) const {
     if(i.in_grid && j.in_grid) return DISTANCE_FIXED;  // 两个网格原子间距离固定
@@ -521,60 +486,23 @@ distance_type model::distance_type_between(const distance_type_matrix& mobility,
     return (a < b) ? mobility(a, b) : mobility(b, a);  // 查询移动性矩阵（确保索引顺序）
 }
 
-/**
- * @brief 获取指定原子的坐标
- * 
- * 根据原子索引类型（网格原子或普通原子）返回相应的坐标。
- * 
- * @param i 原子索引
- * @return 原子坐标的常量引用
- */
+
 const vec& model::atom_coords(const atom_index& i) const {
     return i.in_grid ? grid_atoms[i.i].coords : coords[i.i];
 }
 
-/**
- * @brief 计算两原子间的距离平方
- * 
- * @param a 第一个原子索引
- * @param b 第二个原子索引
- * @return 距离的平方值
- * 
- * @note 使用距离平方避免开方运算，提高计算效率
- */
+
 fl model::distance_sqr_between(const atom_index& a, const atom_index& b) const {
     return vec_distance_sqr(atom_coords(a), atom_coords(b));
 }
 
-/**
- * @brief 键比较结构（可能需要移除）
- * 
- * 用于按连接原子索引对键进行排序
- */
+
 struct bond_less { // FIXME rm!?
 	bool operator()(const bond& a, const bond& b) const {
 		return a.connected_atom_index.i < b.connected_atom_index.i;
 	}
 };
 
-/**
- * @brief 检查两原子间是否存在中间原子
- * 
- * 判断是否存在一个原子，它到两个目标原子的距离都比目标原子间距离更近，
- * 且相对于目标原子不可移动。这用于避免不合理的键分配。
- * 
- * @param mobility 移动性矩阵
- * @param a 第一个原子索引
- * @param b 第二个原子索引
- * @param relevant_atoms 候选中间原子列表
- * @return 是否存在符合条件的中间原子
- * 
- * @note 算法逻辑：
- *       1. 计算a和b间的距离平方r2
- *       2. 遍历所有候选原子c
- *       3. 检查c到a和c到b的距离是否都小于r2
- *       4. 检查a-c和b-c的距离类型是否都不是DISTANCE_VARIABLE
- */
 bool model::atom_exists_between(const distance_type_matrix& mobility, const atom_index& a, const atom_index& b, const szv& relevant_atoms) const {
     fl r2 = distance_sqr_between(a, b);  // a和b间的距离平方
     
@@ -597,12 +525,6 @@ bool model::atom_exists_between(const distance_type_matrix& mobility, const atom
 	return false;
 }
 
-/**
- * @brief 空间分组结构（珠子算法）
- * 
- * 将原子按空间位置分组，用于加速键分配过程中的邻近原子搜索。
- * 采用简单的珠子算法，将相近的原子归为一组。
- */
 struct beads {
     fl radius_sqr;  ///< 珠子半径的平方
     std::vector<std::pair<vec, szv> > data;  ///< 珠子数据：<中心坐标, 原子索引列表>
@@ -614,15 +536,6 @@ struct beads {
 	beads(sz reserve_size, fl radius_sqr_) : radius_sqr(radius_sqr_) { data.reserve(reserve_size); }
 
     
-    /**
-     * @brief 添加原子到合适的珠子中
-     * 
-     * 如果原子坐标与现有珠子中心距离小于半径，则加入该珠子；
-     * 否则创建新的珠子。
-     * 
-     * @param index 原子索引
-     * @param coords 原子坐标
-     */
 	void add(sz index, const vec& coords) {
         // 寻找合适的现有珠子
 		VINA_FOR_IN(i, data) {
@@ -641,29 +554,18 @@ struct beads {
 
 /**
  * @brief 基于相对移动性、距离和共价长度分配化学键
- * 
- * 这是键分配的核心算法，结合了空间距离、共价半径和移动性约束来识别化学键。
- * 使用珠子算法优化邻近原子搜索，避免O(n²)的全局搜索。
- * 
  * @param mobility 移动性矩阵，定义原子间的相对移动关系
- * 
- * @note 算法流程：
- *       1. 使用珠子算法将原子按空间位置分组
- *       2. 对每个原子，在其邻近珠子中搜索可能的键合原子
- *       3. 基于距离、共价半径和移动性判断是否形成键
- *       4. 检查是否存在中间原子阻止键的形成
- *       5. 为满足条件的原子对建立双向键连接
  */
 void model::assign_bonds(const distance_type_matrix& mobility) {
-    const fl bond_length_allowance_factor = 1.1;  // 键长容差因子
+    const fl bond_length_allowance_factor = 1.1;  // 给与键长相比默认值（两个原子共价半径之和）可能变化的范围
     sz n = grid_atoms.size() + atoms.size();  // 总原子数
 
-    // 构建珠子数据结构
-    const fl bead_radius = 15;  // 珠子半径
+    // 构建珠子数据结构并将所有原子添加到珠子中
+    const fl bead_radius = 15;
     beads beads_instance(n, sqr(bead_radius));
     VINA_FOR(i, n) {
         atom_index i_atom_index = sz_to_atom_index(i);
-        beads_instance.add(i, atom_coords(i_atom_index));  // 将所有原子添加到珠子中
+        beads_instance.add(i, atom_coords(i_atom_index));
     }
     
     // 为每个原子分配键
@@ -672,28 +574,31 @@ void model::assign_bonds(const distance_type_matrix& mobility) {
 		const vec& i_atom_coords = atom_coords(i_atom_index);
 		atom& i_atom = get_atom(i_atom_index);
 
+        // 设置共价半径与截断值
 		const fl max_covalent_r = max_covalent_radius(); // FIXME mv to atom_constants
 		fl i_atom_covalent_radius = max_covalent_r;
 		if(i_atom.ad < AD_TYPE_SIZE)
 			i_atom_covalent_radius = ad_type_property(i_atom.ad).covalent_radius;
-
-        // 寻找相关原子（潜在的键合伙伴）
-		szv relevant_atoms;
 		const fl bead_cutoff_sqr = sqr(bead_radius + bond_length_allowance_factor * (i_atom_covalent_radius + max_covalent_r));
+        szv relevant_atoms;
         
+        // 遍历所有珠子
 		VINA_FOR_IN(b, beads_instance.data) {
             // 跳过距离过远的珠子
 			if(vec_distance_sqr(beads_instance.data[b].first, i_atom_coords) > bead_cutoff_sqr) continue;
             
+            // 遍历珠子内的原子
 			const szv& bead_elements = beads_instance.data[b].second;
 			VINA_FOR_IN(bead_elements_i, bead_elements) {
 				sz j = bead_elements[bead_elements_i];
 				atom_index j_atom_index = sz_to_atom_index(j);
 				atom& j_atom = get_atom(j_atom_index);
+
+                // 确定共价键长度和距离类型
 				const fl bond_length = i_atom.optimal_covalent_bond_length(j_atom);
 				distance_type dt = distance_type_between(mobility, i_atom_index, j_atom_index);
                 
-                // 只考虑非可变距离的原子对
+                // 若距离可变则不太可能建立化学键
 				if(dt != DISTANCE_VARIABLE && i != j) {
 					fl r2 = distance_sqr_between(i_atom_index, j_atom_index);
                     // 基于共价半径判断是否在键合范围内
@@ -720,7 +625,7 @@ void model::assign_bonds(const distance_type_matrix& mobility) {
                 bool rotatable = (dt == DISTANCE_ROTOR);  // 是否为可旋转键
 				fl length = std::sqrt(r2);
                 
-                // 为两个原子都添加键信息（双向连接）
+                // 为两个原子都添加键信息
 				i_atom.bonds.push_back(bond(j_atom_index, length, rotatable));
 				j_atom.bonds.push_back(bond(i_atom_index, length, rotatable));
 			}
@@ -730,11 +635,8 @@ void model::assign_bonds(const distance_type_matrix& mobility) {
 
 /**
  * @brief 检查原子是否与HD（氢供体）原子键合
- * 
  * @param a 待检查的原子
  * @return 是否与HD原子键合
- * 
- * @note HD原子是AutoDock原子类型中的氢供体氢原子
  */
 bool model::bonded_to_HD(const atom& a) const {
 	VINA_FOR_IN(i, a.bonds) {
@@ -746,12 +648,7 @@ bool model::bonded_to_HD(const atom& a) const {
 }
 
 /**
- * @brief 检查原子是否与杂原子键合
- * 
- * @param a 待检查的原子
- * @return 是否与杂原子键合
- * 
- * @note 杂原子指除碳和氢以外的原子（如N, O, S等）
+ * @brief 检查原子是否与杂原子（不是C/H）键合
  */
 bool model::bonded_to_heteroatom(const atom& a) const {
 	VINA_FOR_IN(i, a.bonds) {
@@ -763,16 +660,8 @@ bool model::bonded_to_heteroatom(const atom& a) const {
 }
 
 /**
- * @brief 为所有原子分配X-Score原子类型
- * 
- * 根据元素类型、化学环境（键合情况）和AutoDock原子类型，
+ * @brief 根据元素类型、化学环境（键合情况）和AutoDock原子类型，
  * 为每个原子分配X-Score评分函数使用的原子类型。
- * 
- * @note X-Score原子类型考虑以下因素：
- *       - 元素类型（C, N, O等）
- *       - 氢键供体/受体性质
- *       - 与杂原子的键合情况
- *       - 大环闭合的特殊原子类型（CG0-CG3, G0-G3）
  */
 void model::assign_types() {
 	VINA_FOR(i, grid_atoms.size() + atoms.size()) {
@@ -826,14 +715,11 @@ void model::assign_types() {
 }
 
 /**
- * @brief 递归查找与指定原子键合的所有原子（到指定深度）
+ * @brief 深度优先搜索与指定原子键合的所有原子（到指定深度）
  * 
  * @param a 起始原子索引
  * @param n 搜索深度（键的数量）
  * @param out 输出向量，存储找到的原子索引
- * 
- * @note 用于查找1-2, 1-3, 1-4等键合关系
- * @note 使用深度优先搜索，避免重复添加相同原子
  */
 void model::bonded_to(sz a, sz n, szv& out) const {
     if(!has(out, a)) { // 避免重复添加
@@ -848,7 +734,7 @@ void model::bonded_to(sz a, sz n, szv& out) const {
 }
 
 /**
- * @brief 查找与指定原子键合的所有原子（返回版本）
+ * @brief 查找与指定原子键合的所有原子
  * 
  * @param a 起始原子索引
  * @param n 搜索深度
@@ -861,19 +747,7 @@ szv model::bonded_to(sz a, sz n) const {
 }
 
 /**
- * @brief 检查是否为大环闭合碰撞
- * 
- * 判断两个原子间的相互作用是否应该被排除，因为它们是大环闭合结构中的1-2, 1-3或1-4相互作用。
- * 这些相互作用在大环结构中需要特殊处理以避免不合理的能量贡献。
- * 
- * @param i 第一个原子索引
- * @param j 第二个原子索引
- * @return 是否为需要排除的大环闭合碰撞
- * 
- * @note 检查逻辑：
- *       1. 如果是G-CG配对，不算碰撞
- *       2. 如果两原子的邻居中有相同类型的CG原子，则算碰撞
- *       3. 支持CG0-G0, CG1-G1, CG2-G2, CG3-G3四种大环类型
+ * @brief 检查两个原子是否存在大环闭合碰撞 
  */
 bool model::is_closure_clash(sz i, sz j) const {
 	sz t1 = atoms[i].get(atom_type::AD);
@@ -916,13 +790,22 @@ bool model::is_closure_clash(sz i, sz j) const {
 }
 
 /**
+ * @brief 检查两个原子是否为不匹配的闭合虚原子
+ */
+bool model::is_unmatched_closure_dummy(sz i, sz j) const {
+    sz t1 = atoms[i].get(atom_type::AD);
+    sz t2 = atoms[j].get(atom_type::AD);
+    if ((t1==AD_TYPE_G0 && t2!=AD_TYPE_CG0) || (t2==AD_TYPE_G0 && t1!=AD_TYPE_CG0) ||
+        (t1==AD_TYPE_G1 && t2!=AD_TYPE_CG1) || (t2==AD_TYPE_G1 && t1!=AD_TYPE_CG1) ||
+        (t1==AD_TYPE_G2 && t2!=AD_TYPE_CG2) || (t2==AD_TYPE_G2 && t1!=AD_TYPE_CG2) ||
+        (t1==AD_TYPE_G3 && t2!=AD_TYPE_CG3) || (t2==AD_TYPE_G3 && t1!=AD_TYPE_CG3))
+        return true;
+    else
+        return false;
+}
+
+/**
  * @brief 检查是否为胶合原子对
- * 
- * 胶合原子对是大环闭合结构中的CG-G配对，它们之间有特殊的相互作用。
- * 
- * @param i 第一个原子索引
- * @param j 第二个原子索引
- * @return 是否为胶合原子对
  */
 bool model::is_glue_pair(sz i, sz j) const {
     sz t1 = atoms[i].get(atom_type::AD);
@@ -938,41 +821,12 @@ bool model::is_glue_pair(sz i, sz j) const {
 }
 
 /**
- * @brief 检查是否为不匹配的闭合虚原子
- * 
- * 排除一个原子是G类型但另一个原子不是对应CG类型的原子对。
- * 这种不匹配的配对在大环结构中是不合理的。
- * 
- * @param i 第一个原子索引
- * @param j 第二个原子索引
- * @return 是否为不匹配的闭合虚原子对
- */
-bool model::is_unmatched_closure_dummy(sz i, sz j) const {
-    sz t1 = atoms[i].get(atom_type::AD);
-    sz t2 = atoms[j].get(atom_type::AD);
-    if ((t1==AD_TYPE_G0 && t2!=AD_TYPE_CG0) || (t2==AD_TYPE_G0 && t1!=AD_TYPE_CG0) ||
-        (t1==AD_TYPE_G1 && t2!=AD_TYPE_CG1) || (t2==AD_TYPE_G1 && t1!=AD_TYPE_CG1) ||
-        (t1==AD_TYPE_G2 && t2!=AD_TYPE_CG2) || (t2==AD_TYPE_G2 && t1!=AD_TYPE_CG2) ||
-        (t1==AD_TYPE_G3 && t2!=AD_TYPE_CG3) || (t2==AD_TYPE_G3 && t1!=AD_TYPE_CG3))
-        return true;
-    else
-        return false;
-}
-
-/**
  * @brief 初始化相互作用对
  * 
  * 建立分子系统中所有相关的非键相互作用对，这些相互作用对将用于能量计算。
  * 相互作用对的类型包括分子内、分子间和胶合相互作用。
  * 
  * @param mobility 移动性矩阵，定义原子间的相对移动关系
- * 
- * @note 相互作用类型分类：
- *       - ligand_i - ligand_i : 分子内配体相互作用（1-4及以上）
- *       - flex_i   - flex_i   : 分子内柔性相互作用（1-4及以上）
- *       - flex_i   - flex_j   : 不同柔性残基间相互作用
- *       - 大环闭合相互作用  : 排除1-2, 1-3, 1-4相互作用
- * 
  * @note 算法流程：
  *       1. 为每个原子查找其1-4键合邻居
  *       2. 对每对原子，检查是否应建立相互作用对
@@ -987,31 +841,28 @@ void model::initialize_pairs(const distance_type_matrix& mobility) {
     - 大环内部闭合相互作用: 否（1-2, 1-3, 1-4）
     */
     VINA_FOR_IN(i, atoms) {
-        sz i_lig = find_ligand(i);  // 查找原子i所属的配体
-        szv bonded_atoms = bonded_to(i, 3);   // 查找1-4键合邻居
+        sz i_lig = find_ligand(i);
+        szv bonded_atoms = bonded_to(i, 3);     // BUG?排除了1-4及以下的相互作用
 
-        VINA_RANGE(j, i + 1, atoms.size()) {  // 避免重复处理原子对
-            // 只处理可变距离且非键合的原子对
+        VINA_RANGE(j, i + 1, atoms.size()) {
             if (mobility(i, j) == DISTANCE_VARIABLE && !has(bonded_atoms, j)) {
-                // 排除大环闭合碰撞和不匹配的闭合虚原子
                 if (is_closure_clash(i, j) || is_unmatched_closure_dummy(i, j)) continue;
                 
+                // 获取原子类型索引
                 sz t1 = atoms[i].get(atom_typing_used());
                 sz t2 = atoms[j].get(atom_typing_used());
                 sz n  = num_atom_types(atom_typing_used());
 
-                if (t1 < n && t2 < n) { // 排除氢原子等无效类型
+                if (t1 < n && t2 < n) { 
+                    // 两个原子类型在快速计算表中的索引
                     sz type_pair_index = triangular_matrix_index_permissive(n, t1, t2);
                     interacting_pair ip(type_pair_index, i, j);
                     
                     if (is_glue_pair(i, j)) {
-                        // 添加胶合相互作用对
                         glue_pairs.push_back(ip);
                     } else if (i_lig < ligands.size() && find_ligand(j) == i_lig) {
-                        // 添加分子内配体相互作用
                         ligands[i_lig].pairs.push_back(ip);
                     } else if (!is_atom_in_ligand(i) && !is_atom_in_ligand(j)) {
-                        // 添加分子内柔性相互作用或柔性残基间相互作用
                         other_pairs.push_back(ip);
                     }
                 }
@@ -1022,13 +873,10 @@ void model::initialize_pairs(const distance_type_matrix& mobility) {
 
 /**
  * @brief 初始化模型
- * 
- * 完整的模型初始化过程，包括设置配体范围、分配化学键、分配原子类型和初始化相互作用对。
- * 
  * @param mobility 移动性矩阵
  * 
- * @note 初始化顺序很重要：
- *       1. 首先设置配体范围（确定原子归属）
+ * @note 初始化顺序：
+ *       1. 首先设置配体的原子索引范围（确定原子归属）
  *       2. 然后分配化学键（建立拓扑连接）
  *       3. 接着分配原子类型（基于键合环境）
  *       4. 最后初始化相互作用对（基于拓扑和类型）
@@ -1062,14 +910,8 @@ sz model::num_internal_pairs() const {
 
 /**
  * @brief 获取可移动原子的所有原子类型
- * 
- * 遍历所有可移动原子，收集其使用的原子类型，去除重复类型
- * 
  * @param atom_typing_used_ 使用的原子类型系统
  * @return szv 包含所有可移动原子类型的向量
- * 
- * @note 只收集有效的原子类型（类型索引 < 总类型数），排除氢原子等无效类型
- * @note 使用has()函数确保每种类型只添加一次
  */
 szv model::get_movable_atom_types(atom_type::t atom_typing_used_) const {
 	szv tmp;
@@ -1180,14 +1022,7 @@ vecv model::get_heavy_atom_movable_coords() const { // FIXME mv
 }
 
 /**
- * @brief 查找原子所属的配体编号
- * 
- * 通过原子索引确定其所属的配体
- * 
- * @param a 原子索引
- * @return sz 配体编号，如果不属于任何配体则返回配体总数
- * 
- * @note 使用原子索引范围判断：如果a在[begin, end)范围内，则属于该配体
+ * @brief 通过原子索引查找原子所属的配体编号，如果不属于任何配体则返回配体总数
  */
 sz model::find_ligand(sz a) const {
     VINA_FOR_IN(i, ligands) {

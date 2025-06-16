@@ -58,7 +58,15 @@ struct frame {
 		tmp = orientation_m * local_direction;
 		return tmp;
 	}
+	/**
+     * @brief 获取框架方向四元数
+	 * @return 实验室坐标系中的方向四元数
+     */
 	const qt& orientation() const { return orientation_q; }
+	/**
+     * @brief 获取frame原点位置
+     * @return frame原点位置
+     */
 	const vec& get_origin() const { return origin; }
 protected:
 	vec origin; ///< 框架原点位置

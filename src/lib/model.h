@@ -235,7 +235,7 @@ private:
     vecv coords;        ///< 原子坐标向量
     vecv minus_forces;  ///< 负力向量
 
-    atomv grid_atoms;   ///< 网格原子
+    atomv grid_atoms;   ///< 刚体部分的原子
     atomv atoms;        ///< 可移动和不可弯曲原子
     vector_mutable<ligand> ligands;  ///< 配体列表
     vector_mutable<residue> flex;    ///< 柔性残基列表
