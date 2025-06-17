@@ -1,4 +1,6 @@
-/*
+/**
+ * @file szv_grid.cpp
+ * @brief svz网格实现，主要功能优化网格维度和筛选可能相互作用的原子
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

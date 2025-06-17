@@ -1,4 +1,6 @@
-/*
+/**
+ * @file model.cpp
+ * @brief 分子对接模型实现
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

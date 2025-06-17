@@ -1,4 +1,6 @@
-/*
+/**
+ * @file random.h
+ * @brief 随机数生成相关函数声明
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

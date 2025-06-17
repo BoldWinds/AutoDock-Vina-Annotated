@@ -1,6 +1,6 @@
 /**
  * @file szv_grid.h
- * @brief SZV网格类定义 - 用于分子对接中的空间索引优化
+ * @brief svz网格定义，主要功能优化网格维度和筛选可能相互作用的原子
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

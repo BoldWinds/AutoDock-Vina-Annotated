@@ -1,4 +1,6 @@
-/*
+/**
+ * @file coords.h
+ * @brief 定义计算RMSD上界计算、查找最相似构象和添加对接结果到输出容器
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -26,9 +28,24 @@
 #include "conf.h"
 #include "atom.h" // for atomv
 
+/**
+ * @brief 计算两组坐标向量间的RMSD上界
+ */
 fl rmsd_upper_bound(const vecv& a, const vecv& b);
-std::pair<sz, fl> find_closest(const vecv& a, const output_container& b);
-void add_to_output_container(output_container& out, const output_type& t, fl min_rmsd, sz max_size);
 
+/**
+ * @brief 在输出容器中查找与给定坐标最相似的构象
+ */
+std::pair<sz, fl> find_closest(const vecv& a, const output_container& b);
+
+/**
+ * @brief 向输出容器添加新的对接结果
+ * @param out 输出容器，存储对接结果
+ * @param t 待添加的输出类型结果
+ * @param min_rmsd 最小RMSD阈值，用于判断构象相似性
+ * @param max_size 容器最大容量限制
+ * @note 实现去重逻辑：相似构象保留能量更低者，容器满时替换最差结果
+ */
+void add_to_output_container(output_container& out, const output_type& t, fl min_rmsd, sz max_size);
 
 #endif

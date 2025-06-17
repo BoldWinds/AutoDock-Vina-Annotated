@@ -1,5 +1,5 @@
 /**
- * @file quaternion.cpp
+ * @file quaternion.h
  * @brief 四元数操作和旋转相关的工具函数
 
    Copyright (c) 2006-2010, The Scripps Research Institute

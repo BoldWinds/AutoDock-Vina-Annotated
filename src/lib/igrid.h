@@ -1,4 +1,6 @@
-/*
+/**
+ * @file igrid.h
+ * @brief 网格接口抽象基类，定义了计算相互作用能量的接口
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

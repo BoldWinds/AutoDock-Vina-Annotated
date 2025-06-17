@@ -1,4 +1,6 @@
-/*
+/**
+ * @file utils.h
+ * @brief 工具函数和常量定义
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

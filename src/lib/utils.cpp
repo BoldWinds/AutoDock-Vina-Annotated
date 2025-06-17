@@ -1,4 +1,6 @@
-/*
+/**
+ * @file utils.cpp
+ * @brief 工具函数实现
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

@@ -1,4 +1,6 @@
-/*
+/**
+ * @file atom_base.h
+ * @brief 给原子添加电荷
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -27,9 +29,6 @@
 
 /**
  * @brief 原子基础类
- * 
- * 继承自atom_type类，添加了电荷属性。
- * 作为更复杂原子类的基类，提供基本的原子信息存储功能。
  */
 struct atom_base : public atom_type {
     fl charge;  ///< 原子电荷(原子单位)

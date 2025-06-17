@@ -1,4 +1,6 @@
-/*
+/**
+ * @file vina.cpp
+ * @brief AutoDock Vina对接过程实现
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

@@ -1,4 +1,6 @@
-/*
+/**
+ * @file parse_error.h
+ * @brief PDBQT解析错误异常类定义
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

@@ -1,4 +1,6 @@
-/*
+/**
+ * @file common.h
+ * @brief Vina常用类型和函数定义
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

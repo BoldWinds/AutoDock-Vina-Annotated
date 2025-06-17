@@ -1,4 +1,6 @@
-/*
+/**
+ * @file parse_pdbqt.cpp
+ * @brief 定义从受体/配体构建分子对接模型的函数
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

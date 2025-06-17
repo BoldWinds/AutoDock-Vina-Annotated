@@ -1,4 +1,6 @@
-/*
+/**
+ * @file model.h
+ * @brief 分子对接模型定义
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

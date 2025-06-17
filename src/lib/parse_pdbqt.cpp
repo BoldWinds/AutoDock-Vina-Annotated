@@ -1,4 +1,6 @@
-/*
+/**
+ * @file parse_pdbqt.cpp
+ * @brief PDBQT解析和模型构建实现
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
