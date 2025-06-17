@@ -1,4 +1,6 @@
-/*
+/**
+ * @file non_cache.h 
+ * @brief 非插值计算能量
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -36,9 +38,9 @@ struct non_cache : public igrid {
 	bool within(const model& m, fl margin = 0.0001) const;
 	fl slope;
 private:
-	szv_grid sgrid;
-	grid_dims gd;
-	const precalculate* p;
+	szv_grid sgrid;     // 用于寻找相互作用原子
+	grid_dims gd;       // 网格维度参数
+	const precalculate* p;  ///< 预计算参数，用于能量计算
 };
 
 #endif

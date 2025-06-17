@@ -1,4 +1,7 @@
-/*
+/**
+ * @file non_cache.cpp
+ * @brief 实现非插值的精确能量计算方式
+
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -58,6 +61,7 @@ fl non_cache::eval      (const model& m, fl v) const { // clean up
 				break;
 		}
 
+		// 边界处理
 		const vec& a_coords = m.coords[i];
 		vec adjusted_a_coords; adjusted_a_coords = a_coords;
 		VINA_FOR_IN(j, gd) {
@@ -68,8 +72,8 @@ fl non_cache::eval      (const model& m, fl v) const { // clean up
 		}
 		out_of_bounds_penalty *= slope;
 
+		// 可能与i产生相互作用的原子
 		const szv& possibilities = sgrid.possibilities(adjusted_a_coords);
-
 		VINA_FOR_IN(possibilities_j, possibilities) {
 			const sz j = possibilities[possibilities_j];
 			const atom& b = m.grid_atoms[j];
