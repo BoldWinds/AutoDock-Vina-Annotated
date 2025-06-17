@@ -414,6 +414,21 @@ std::vector<double> Vina::grid_dimensions_from_ligand(double buffer_size) {
 	return box_dimensions;
 }
 
+/**
+ * @brief 计算Vina/Vinardo评分函数的亲和力地图
+ * 
+ * 该函数为指定的网格区域预计算受体刚性部分与不同原子类型的相互作用能量，
+ * 生成三维亲和力地图以加速分子对接过程
+ * 
+ * @param center_x 网格盒子中心的x坐标（埃）
+ * @param center_y 网格盒子中心的y坐标（埃）  
+ * @param center_z 网格盒子中心的z坐标（埃）
+ * @param size_x 网格盒子在x方向的尺寸（埃）
+ * @param size_y 网格盒子在y方向的尺寸（埃）
+ * @param size_z 网格盒子在z方向的尺寸（埃）
+ * @param granularity 网格分辨率，即相邻网格点间距（埃，典型值0.375）
+ * @param force_even_voxels 是否强制使用偶数个体素（默认false）
+ */
 void Vina::compute_vina_maps(double center_x, double center_y, double center_z, double size_x, double size_y, double size_z, double granularity, bool force_even_voxels) {
 	// Setup the search box
 	// Check first that the receptor was added
@@ -428,23 +443,21 @@ void Vina::compute_vina_maps(double center_x, double center_y, double center_z, 
 		std::cerr << "WARNING: Search space volume is greater than 27000 Angstrom^3 (See FAQ)\n";
 	}
 
+	// 初始化网格参数
 	grid_dims gd;
-	vec span(size_x, size_y, size_z);
-	vec center(center_x, center_y, center_z);
+	vec span(size_x, size_y, size_z);			// 网格盒子尺寸
+	vec center(center_x, center_y, center_z);	// 网格中心
 	const fl slope = 1e6; // FIXME: too large? used to be 100
+
+	// atom_types保存所有可移动原子的原子类型（若配体已初始化也会包括配体的原子）
 	szv atom_types;
 	atom_type::t atom_typing = m_scoring_function->get_atom_typing();
-
-	/* Atom types initialization
-	If a ligand was defined before, we only use those present in the ligand
-	otherwise we use all the atom types present in the forcefield
-	*/
 	if (m_ligand_initialized)
 		atom_types = m_model.get_movable_atom_types(atom_typing);
 	else
 		atom_types = m_scoring_function->get_atom_types();
 
-	// Grid dimensions
+	// 根据参数初始化网格的三维维度
 	VINA_FOR_IN(i, gd) {
 		gd[i].n_voxels = sz(std::ceil(span[i] / granularity));
 
@@ -458,7 +471,7 @@ void Vina::compute_vina_maps(double center_x, double center_y, double center_z, 
 		gd[i].end = gd[i].begin + real_span;
 	}
 
-	// Initialize the scoring function
+	// 初始化预计算（原子类型）
 	precalculate precalculated_sf(*m_scoring_function);
 	// Store it now in Vina object because of non_cache
 	m_precalculated_sf = precalculated_sf;
@@ -468,13 +481,13 @@ void Vina::compute_vina_maps(double center_x, double center_y, double center_z, 
 	else
 		doing("Computing Vinardo grid", m_verbosity, 0);
 
-	// Compute the Vina grids
+	// 计算网格对象
 	cache grid(gd, slope);
 	grid.populate(m_model, precalculated_sf, atom_types);
 
 	done(m_verbosity, 0);
 
-	// create non_cache for scoring with explicit receptor atoms (instead of grids)
+	// 创建用于精确计算的non_cache对象
 	if (!m_no_refine) {
 		non_cache nc(m_model, gd, &m_precalculated_sf, slope);
 		m_non_cache = nc;

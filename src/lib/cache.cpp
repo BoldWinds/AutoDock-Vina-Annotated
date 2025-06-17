@@ -1,4 +1,6 @@
-/*
+/**
+ * @file cache.cpp
+ * @brief 实现受体刚性部分的能量预计算
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -27,6 +29,9 @@
 
 namespace fs = boost::filesystem;
 
+/**
+ * @brief 将原子类型转换为字符串
+ */
 std::string convert_XS_to_string(sz t) {
 	switch(t) {
 		case XS_TYPE_C_H     : return "C_H";
@@ -432,11 +437,17 @@ void cache::write(const std::string& out_prefix, const szv& atom_types, const st
 	} // map atom type
 } // cache::write
 
+/**
+ * @brief 填充网格数据
+ * @param m 模型对象
+ * @param p 原子类型的预计算对象
+ * @param atom_types_needed 需要填充的原子类型列表
+ */
 void cache::populate(const model &m, const precalculate &p, const szv &atom_types_needed) {
+	// 原子类型预处理
 	szv needed;
 	bool got_C_H_already = false;
 	bool got_C_P_already = false;
-
 	VINA_FOR_IN(i, atom_types_needed) {
 		sz t = atom_types_needed[i];
 		switch (t)
@@ -470,28 +481,35 @@ void cache::populate(const model &m, const precalculate &p, const szv &atom_type
 	}
 	if(needed.empty())
 		return;
+	
+	// 初始化数据结构
 	flv affinities(needed.size());
-
 	sz nat = num_atom_types(atom_type::XS);
-
-	grid& g = m_grids[needed.front()];
-
+	grid& g = m_grids[needed.front()];		// 仅用来确定维度
 	const fl cutoff_sqr = p.cutoff_sqr();
 
+	// 初始化szv_grid
 	grid_dims gd_reduced = szv_grid_dims(m_gd);
 	szv_grid ig(m, gd_reduced, cutoff_sqr);
 
+	// 能量计算
 	VINA_FOR(x, g.m_data.dim0()) {
 		VINA_FOR(y, g.m_data.dim1()) {
 			VINA_FOR(z, g.m_data.dim2()) {
+				// 对于(x,y,z)体素
 				std::fill(affinities.begin(), affinities.end(), 0);
-				vec probe_coords; probe_coords = g.index_to_argument(x, y, z);
+				// 把三维坐标转换为索引
+				vec probe_coords; 
+				probe_coords = g.index_to_argument(x, y, z);
+				// 获取该坐标附近的能产生相互作用的原子索引
 				const szv& possibilities = ig.possibilities(probe_coords);
 				VINA_FOR_IN(possibilities_i, possibilities) {
 					const sz i = possibilities[possibilities_i];
 					const atom& a = m.grid_atoms[i];
 					const sz t1 = a.get(atom_type::XS);
+					// 原子类型不符合就跳过
 					if(t1 >= nat) continue;
+					// 距离超出阶段范围也跳过
 					const fl r2 = vec_distance_sqr(a.coords, probe_coords);
 					if(r2 <= cutoff_sqr) {
 						VINA_FOR_IN(j, needed) {
@@ -502,6 +520,7 @@ void cache::populate(const model &m, const precalculate &p, const szv &atom_type
 						}
 					}
 				}
+				// 把计算出的亲和力存入网格
 				VINA_FOR_IN(j, needed) {
 					sz t = needed[j];
 					assert(t < nat);

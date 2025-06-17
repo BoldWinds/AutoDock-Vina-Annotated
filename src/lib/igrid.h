@@ -27,10 +27,22 @@
 
 struct model; // forward declaration
 
-struct igrid { // grids interface (that cache, etc. conform to)
-	virtual fl eval      (const model& m, fl v) const = 0; // needs m.coords // clean up
-	virtual fl eval_intra(      model& m, fl v) const = 0; // only flexres-grids
-	virtual fl eval_deriv(      model& m, fl v) const = 0; // needs m.coords, sets m.minus_forces // clean up
+/**
+ * @brief 网格接口抽象基类，cache和non_cache都继承自此类
+ */
+struct igrid {
+    /**
+     * @brief 计算配体与受体之间的相互作用能量
+     */
+	virtual fl eval      (const model& m, fl v) const = 0;
+    /**
+     * @brief 评估柔性残基内部相互作用能量
+     */
+	virtual fl eval_intra(      model& m, fl v) const = 0;
+    /**
+     * @brief 计算能量导数（梯度和力），用于优化算法中的梯度下降或力的计算
+     */
+	virtual fl eval_deriv(      model& m, fl v) const = 0;
 };
 
 #endif

@@ -1,4 +1,6 @@
-/*
+/**
+ * @file cache.h
+ * @brief 管理所有原子类型的能量网格，实现能量计算接口
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -42,7 +44,14 @@
 struct precalculate;
 struct model;
 
+/**
+ * @brief 管理所有原子类型的能量网格，提供统一的能量计算接口
+ */
 struct cache : public igrid {
+private:
+	grid_dims m_gd;
+	fl m_slope; // does not get (de-)serialized
+	std::vector<grid> m_grids;      // 存储所有原子类型的网格
 public:
     cache(fl slope=1e6) : m_slope(slope), m_grids(XS_TYPE_SIZE) {}
 	cache(const grid_dims& gd, fl slope=1e6) : m_gd(gd), m_slope(slope), m_grids(XS_TYPE_SIZE) {}
@@ -58,11 +67,13 @@ public:
     void read(const std::string& str);
     void write(const std::string& out_prefix, const szv& atom_types, const std::string& gpf_filename="NULL",
                const std::string& fld_filename="NULL", const std::string& receptor_filename="NULL");
+    /**
+    * @brief 填充网格数据(m_grids)
+    * @param m 模型对象
+    * @param p 原子类型的预计算对象
+    * @param atom_types_needed 需要填充的原子类型列表
+    */
 	void populate(const model& m, const precalculate& p, const szv& atom_types_needed);
-private:
-	grid_dims m_gd;
-	fl m_slope; // does not get (de-)serialized
-	std::vector<grid> m_grids;
 };
 
 #endif

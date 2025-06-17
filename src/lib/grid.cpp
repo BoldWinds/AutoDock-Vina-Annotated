@@ -1,4 +1,6 @@
-/*
+/**
+ * @file grid.cpp
+ * @brief 实现了单一网格的初始化和三线性插值计算能量/导数
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -22,6 +24,10 @@
 
 #include "grid.h"
 
+/**
+ * @brief 初始化网格参数
+ * @param gd 网格维度参数，包含每个维度的起始位置、结束位置和区间数量
+ */
 void grid::init(const grid_dims& gd) {
 	m_data.resize(gd[0].n_voxels + 1, gd[1].n_voxels + 1, gd[2].n_voxels + 1); // number of sample points == n_voxels + 1
 	m_init = vec(gd[0].begin, gd[1].begin, gd[2].begin);
@@ -38,31 +44,36 @@ void grid::init(const grid_dims& gd) {
 	}
 }
 
+/**
+ * @brief 在三维空间中的*任意位置*进行三线性插值，计算该位置的能量值和梯度(可选)。
+ */
 fl grid::evaluate_aux(const vec& location, fl slope, fl v, vec* deriv) const { // sets *deriv if not NULL
-	vec s  = elementwise_product(location - m_init, m_factor); 
-
 	vec miss(0, 0, 0);
 	boost::array<int, 3> region;
-	boost::array<sz, 3> a;
+	boost::array<sz, 3> a;	// 网格索引的整数部分
 
+	// 含小数部分的网格索引，会在处理后减去整数部分仅保留小数部分
+	vec s  = elementwise_product(location - m_init, m_factor); 
+
+	// 边界检查与越界处理
 	VINA_FOR(i, 3) {
-		if(s[i] < 0) {
+		if(s[i] < 0) {	// 下界外
 			miss[i] = -s[i];
 			region[i] = -1;
 			a[i] = 0; 
 			s[i] = 0;
 		}       
-		else if(s[i] >= m_dim_fl_minus_1[i]) {
+		else if(s[i] >= m_dim_fl_minus_1[i]) {	// 上界外
 			miss[i] = s[i] - m_dim_fl_minus_1[i];
 			region[i] = 1;
 			assert(m_data.dim(i) >= 2);
 			a[i] = m_data.dim(i) -  2; 
 			s[i] = 1;
 		}
-		else {
+		else {	// 在网格中的情况
 			region[i] = 0; // now that region is boost::array, it's not initialized
-			a[i] = sz(s[i]);
-			s[i] -= a[i];
+			a[i] = sz(s[i]);	// 保留索引的整数部分
+			s[i] -= a[i];		// 保留索引的小数部分
 		}
 		assert(s[i] >= 0);
 		assert(s[i] <= 1);
@@ -72,6 +83,7 @@ fl grid::evaluate_aux(const vec& location, fl slope, fl v, vec* deriv) const { /
 	const fl penalty = slope * (miss * m_factor_inv); // FIXME check that inv_factor is correctly initialized and serialized
 	assert(penalty > -epsilon_fl);
 
+	// 三线性插值
 	const sz x0 = a[0];
 	const sz y0 = a[1];
 	const sz z0 = a[2];
@@ -108,6 +120,7 @@ fl grid::evaluate_aux(const vec& location, fl slope, fl v, vec* deriv) const { /
 		f011 *  mx *  y *  z  +
 		f111 *   x *  y *  z  ;
 
+	// 梯度计算
 	if(deriv) { // valid pointer
 		const fl x_g = 
 			f000 * (-1)* my * mz  +
@@ -146,8 +159,8 @@ fl grid::evaluate_aux(const vec& location, fl slope, fl v, vec* deriv) const { /
 		vec gradient_everywhere;
 
 		VINA_FOR(i, 3) {
-			gradient_everywhere[i] = ((region[i] == 0) ? gradient[i] : 0);
-			(*deriv)[i] = m_factor[i] * gradient_everywhere[i] + slope * region[i];
+			gradient_everywhere[i] = ((region[i] == 0) ? gradient[i] : 0);	// 越界则为0
+			(*deriv)[i] = m_factor[i] * gradient_everywhere[i] + slope * region[i];	// 如果越界，导数的方向会指回界内，便于收敛
 		}
 
 		return f + penalty;

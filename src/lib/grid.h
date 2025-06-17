@@ -1,4 +1,6 @@
-/*
+/**
+ * @file grid.h
+ * @brief 三维网格数据结构，存储某个特定原子类型（由外界定义）的能量预计算网格，并提供三线性插值计算精确位置能量的方法
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -31,13 +33,16 @@
 
 class grid { // FIXME rm 'm_', consistent with my new style
 public:
-    vec m_init; // DSM was private
-    vec m_range; // DSM was private
-    vec m_factor_inv; // DSM was private
-	array3d<fl> m_data; // FIXME? - make cache a friend, and convert this back to private?
+    vec m_init;        ///< 网格起始坐标 (网格空间的原点)
+    vec m_range;       ///< 网格范围 (每个维度的总长度)
+    vec m_factor_inv;  ///< 缩放因子的倒数 (用于从网格索引转换为实际坐标)
+    array3d<fl> m_data; ///< 三维数组, m_data(x, y, z) = 该处的能量值
 	grid() : m_init(0, 0, 0), m_range(1, 1, 1), m_factor(1, 1, 1), m_dim_fl_minus_1(-1, -1, -1), m_factor_inv(1, 1, 1) {} // not private
 	grid(const grid_dims& gd) { init(gd); }
     void init(const grid_dims& gd);
+	/**
+     * @brief 将体素索引转换为实际坐标
+     */
 	vec index_to_argument(sz x, sz y, sz z) const {
 		return vec(m_init[0] + m_factor_inv[0] * x,
 		           m_init[1] + m_factor_inv[1] * y,
@@ -46,11 +51,17 @@ public:
 	bool initialized() const {
 		return m_data.dim0() > 0 && m_data.dim1() > 0 && m_data.dim2() > 0;
 	}
+    /**
+     * @brief 在三维空间中的*任意位置*进行三线性插值，计算该位置的能量值。
+     */
 	fl evaluate(const vec& location, fl slope, fl c)             const { return evaluate_aux(location, slope, c, NULL);   }
+    /**
+     * @brief 在三维空间中的*任意位置*进行三线性插值，计算该位置的能量值，并设置梯度。
+     */
 	fl evaluate(const vec& location, fl slope, fl c, vec& deriv) const { return evaluate_aux(location, slope, c, &deriv); } // sets deriv
 private:
-    vec m_factor;
-    vec m_dim_fl_minus_1;
+    vec m_factor;          ///< 缩放因子 (用于从实际坐标转换为网格索引)
+    vec m_dim_fl_minus_1;  ///< 网格维度减1 (用于边界检查)
 
 	fl evaluate_aux(const vec& location, fl slope, fl v, vec* deriv) const; // sets *deriv if not NULL
 	friend class boost::serialization::access;
