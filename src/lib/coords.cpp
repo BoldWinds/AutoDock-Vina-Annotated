@@ -56,7 +56,7 @@ std::pair<sz, fl> find_closest(const vecv& a, const output_container& b) {
 }
 
 /**
- * @brief 向输出容器添加新的对接结果
+ * @brief 向输出容器添加新的对接结果，并检查rmsd是否符合要求、去重，并按照结合能排序
  */
 void add_to_output_container(output_container& out, const output_type& t, fl min_rmsd, sz max_size) {
 	std::pair<sz, fl> closest_rmsd = find_closest(t.coords, out);

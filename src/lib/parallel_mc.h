@@ -1,4 +1,6 @@
-/*
+/**
+ * @file parallel_mc.h
+ * @brief 并行蒙特卡洛搜索功能的头文件定义
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -25,12 +27,29 @@
 
 #include "monte_carlo.h"
 
+/**
+ * @brief 并行蒙特卡洛搜索类
+ * @details 管理多个蒙特卡洛搜索任务的并行执行，用于提高分子对接的搜索效率
+ */
 struct parallel_mc {
 	monte_carlo mc;
 	sz num_tasks;
 	sz num_threads;
 	bool display_progress;
+
 	parallel_mc() : num_tasks(8), num_threads(1), display_progress(true) {}
+
+    /**
+     * @brief 执行并行蒙特卡洛搜索
+     * @param m 对接模型
+     * @param out 输出结果容器
+     * @param p 按原子预计算数据
+     * @param ig 刚体能量网格
+     * @param corner1 搜索空间第一个角点
+     * @param corner2 搜索空间第二个角点
+     * @param generator 随机数生成器
+     * @param progress_callback 进度回调函数指针，目前无作用
+     */
 	void operator()(const model& m, output_container& out, const precalculate_byatom& p, const igrid& ig, const vec& corner1, const vec& corner2, rng& generator, std::function<void(double)>* progress_callback) const;
 };
 
