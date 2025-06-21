@@ -1,4 +1,6 @@
-/*
+/**
+ * @file parallel_progress.h
+ * @brief 显示全局搜索进度
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -37,6 +39,9 @@ typedef boost::timer::progress_display boost_progress;
 
 #include "incrementable.h"
 
+/**
+ * @brief 并行进度显示器
+ */
 struct parallel_progress : public incrementable {
 	parallel_progress(std::function<void(double)>* c = NULL) : p(NULL), callback(c) {}
 	void init(unsigned long n) {
@@ -45,6 +50,7 @@ struct parallel_progress : public incrementable {
     }
 	void operator++() {
 		if(p) {
+            // 加锁保证线程安全
 			boost::mutex::scoped_lock self_lk(self);
 			const unsigned long value = ++(*p);
             if(callback)

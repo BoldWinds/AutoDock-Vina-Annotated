@@ -1,4 +1,6 @@
-/*
+/**
+ * @file parallel_progress.cpp
+ * @brief 空文件，等待删除
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
