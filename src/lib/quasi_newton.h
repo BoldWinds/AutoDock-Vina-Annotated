@@ -1,4 +1,6 @@
-/*
+/**
+ * @file quasi_newton.h
+ * @brief Quasi-Newton优化算法结构体定义
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 

@@ -1,4 +1,6 @@
-/*
+/**
+ * @file quasi_newton.cpp
+ * @brief Quasi-Newton优化算法实现
 
    Copyright (c) 2006-2010, The Scripps Research Institute
 
@@ -23,7 +25,7 @@
 #include "quasi_newton.h"
 #include "bfgs.h"
 
-
+/// @brief 给BFGS算法提供计算结合能的辅助结构体
 struct quasi_newton_aux {
     model* m;
     const precalculate_byatom* p;
@@ -32,6 +34,7 @@ struct quasi_newton_aux {
 
     quasi_newton_aux(model* m_, const precalculate_byatom* p_, const igrid* ig_, const vec& v_) : m(m_), p(p_), ig(ig_), v(v_) {}
     
+    /// @brief bfgs算法中的目标函数，返回结合能
     fl operator()(const conf& c, change& g) {
         // Before evaluating conf, we have to update model
         m->set(c);
@@ -40,6 +43,7 @@ struct quasi_newton_aux {
     }
 };
 
+/// @brief 执行BFGS拟牛顿优化算法，并设置构象和结合能
 void quasi_newton::operator()(model& m, const precalculate_byatom& p, const igrid& ig, output_type& out, change& g, const vec& v, int& evalcount) const { // g must have correct size
     quasi_newton_aux aux(&m, &p, &ig, v);
 
