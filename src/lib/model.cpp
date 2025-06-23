@@ -927,15 +927,7 @@ szv model::get_movable_atom_types(atom_type::t atom_typing_used_) const {
 	return tmp;
 }
 
-/**
- * @brief 获取模型的构象大小信息
- * 
- * 统计配体和柔性部分的可旋转键（扭转角）数量
- * 
- * @return conf_size 包含配体和柔性部分自由度的结构
- * 
- * @note 构象大小决定了优化过程中需要搜索的维度数量
- */
+/// @brief 获取模型的配体和柔性残基的扭转角总数 
 conf_size model::get_size() const {
     conf_size tmp;
     tmp.ligands = ligands.count_torsions();  // 统计所有配体的扭转角总数
