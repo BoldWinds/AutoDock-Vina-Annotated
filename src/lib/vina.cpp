@@ -976,6 +976,27 @@ output_container Vina::remove_redundant(const output_container &in, fl min_rmsd)
 	return tmp;
 }
 
+/**
+ * @brief 执行全局搜索（分子对接）
+ * 
+ * 该函数实现AutoDock Vina的核心分子对接算法，使用蒙特卡洛方法结合局部优化
+ * 来搜索配体在受体结合位点的最优构象。搜索过程包括：
+ * 1. 并行蒙特卡洛采样生成候选构象
+ * 2. 局部优化精化构象
+ * 3. 去除冗余构象
+ * 4. 能量评分和排序
+ * 5. 计算RMSD距离
+ * 
+ * @param exhaustiveness 搜索彻底性参数，控制搜索强度和并行任务数
+ * @param n_poses 保存的最优构象数量
+ * @param min_rmsd 最小RMSD阈值，用于去除相似构象
+ * @param max_evals 最大能量评估次数限制
+ * 
+ * @note 搜索算法基于以下启发式规则：
+ * - 全局步数 = 70 * 3 * (50 + 可移动原子数 + 10*自由度数) / 2
+ * - 局部步数 = (25 + 可移动原子数) / 3
+ * - 支持Vina、Vinardo和AD4.2三种评分函数
+ */
 void Vina::global_search(const int exhaustiveness, const int n_poses, const double min_rmsd, const int max_evals) {
 	// Vina search (Monte-carlo and local optimization)
 	// Check if ff, box and ligand were initialized

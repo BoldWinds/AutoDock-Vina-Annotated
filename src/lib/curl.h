@@ -28,37 +28,27 @@
 #include "common.h"
 
 #if 1 // 优先使用软截断而非硬截断
-/**
- * @brief 软截断函数模板 - 对能量值进行平滑截断并计算导数
- * @tparam T 导数类型，可以是fl（标量）或vec（向量）
- * @param[in,out] e 输入/输出能量值，会被修改为截断后的值
- * @param[in,out] deriv 输入/输出导数值，会被修改为截断后的导数
- * @param[in] v 截断阈值参数
- * 
- * @note 使用平滑函数 e' = e * (v/(v+e))，保证梯度连续性
- * @note 当v很小时（< epsilon_fl），tmp设为0以避免数值不稳定
- * @note 导数按链式法则计算：deriv' = deriv * (v/(v+e))^2
- */
-template<typename T> // T = fl or vec
+
+/// @brief  平滑截断函数
+/// @tparam T = fl or vec
+/// @param e 能量值
+/// @param deriv 导数
+/// @param v 截断距离
+/// @note 当e<<v时，几乎不变；当e>>v时，能量和导数都显著缩小
+template<typename T>
 void curl(fl& e, T& deriv, fl v) {
-    if(e > 0 && not_max(v)) { // 仅当能量为正且v不是最大值时进行截断
-        fl tmp = (v < epsilon_fl) ? 0 : (v / (v + e)); // 计算截断因子，避免除零
-        e *= tmp;          // 应用截断到能量值
-        deriv *= sqr(tmp); // 应用截断到导数（平方项来自链式法则）
+    if(e > 0 && not_max(v)) {
+        fl tmp = (v < epsilon_fl) ? 0 : (v / (v + e));  //这个判断是为了数值稳定性
+        e *= tmp;
+        deriv *= sqr(tmp);
     }
 }
 
-/**
- * @brief 软截断函数 - 仅对能量值进行平滑截断，不涉及导数计算
- * @param[in,out] e 输入/输出能量值，会被修改为截断后的值
- * @param[in] v 截断阈值参数
- * 
- * @note 与模板版本相同的平滑函数，但不计算导数
- */
+
 inline void curl(fl& e, fl v) {
-    if(e > 0 && not_max(v)) { // 仅当能量为正且v不是最大值时进行截断
-        fl tmp = (v < epsilon_fl) ? 0 : (v / (v + e)); // 计算截断因子
-        e *= tmp; // 应用截断到能量值
+    if(e > 0 && not_max(v)) {
+        fl tmp = (v < epsilon_fl) ? 0 : (v / (v + e));
+        e *= tmp;
     }
 }
 

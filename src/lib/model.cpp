@@ -1297,52 +1297,41 @@ fl eval_interacting_pairs(const precalculate_byatom& p, fl v, const interacting_
 }
 
 /**
- * @brief 评估原子间相互作用对的能量和导数(力)
- * 
- * 不仅计算相互作用能量，还计算作用在每个原子上的力，用于分子动力学优化
- * 
+ * @brief 评估原子间相互作用对的能量和导数(力)；不仅计算相互作用能量，还计算作用在每个原子上的力，用于分子动力学优化
  * @param p 预计算的原子间相互作用参数
- * @param v 能量调节参数，用于curl函数
+ * @param v 能量截断参数，用于curl函数
  * @param pairs 需要评估的相互作用对列表
  * @param coords 所有原子的坐标数组
  * @param forces 输出参数：各原子受到的力向量(会累加到现有值)
  * @param with_max_cutoff 是否使用最大截断距离(默认false)
  * @return 总的相互作用能量
- * 
- * @note 力的计算基于能量对坐标的负梯度: F = -∇E
- * @note 使用牛顿第三定律：作用力和反作用力大小相等方向相反
- * @note curl函数同时处理能量和力的平滑截断
  */
 fl eval_interacting_pairs_deriv(const precalculate_byatom& p, fl v, const interacting_pairs& pairs, const vecv& coords, vecv& forces, const bool with_max_cutoff) { // adds to forces  // clean up
-    fl e = 0;  // 总能量初始化
-    fl cutoff_sqr = p.cutoff_sqr();  // 获取截断距离的平方
-
-    // 根据参数选择使用普通截断距离还是最大截断距离
+    fl e = 0;
+    fl cutoff_sqr = p.cutoff_sqr();
     if (with_max_cutoff) {
 		cutoff_sqr = p.max_cutoff_sqr();
 	}
 
-    // 遍历所有相互作用对
 	VINA_FOR_IN(i, pairs) {
-        const interacting_pair& ip = pairs[i];  // 获取当前相互作用对
-        vec r = coords[ip.b] - coords[ip.a];    // 计算从原子a指向原子b的向量
-        fl r2 = sqr(r);  // 计算距离向量的模长平方
+        const interacting_pair& ip = pairs[i];
+        vec r = coords[ip.b] - coords[ip.a];
+        fl r2 = sqr(r);
         
         if(r2 < cutoff_sqr) {  // 只处理在截断距离内的原子对
             // 计算能量和其对距离平方的导数
-            pr tmp = p.eval_deriv(ip.a, ip.b, r2);  // tmp.first是能量，tmp.second是dE/dr²
-            // 计算作用力向量：F = -dE/dr = -(dE/dr²) * (dr²/dr) = -(dE/dr²) * 2r
+            pr tmp = p.eval_deriv(ip.a, ip.b, r2);  // tmp.first是能量，tmp.second是(dE/dr)/r
+
+            // 计算作用力向量：F = -dE/dr = -(dE/dr)/r * r = tmp.second * r
 			vec force;
-            force = tmp.second * r;  // 力向量 = 导数 × 位置向量
+            force = tmp.second * r;
             
             curl(tmp.first, force, v);  // 对能量和力应用平滑截断
-            e += tmp.first;  // 累加能量
+            e += tmp.first;
 
             // 根据牛顿第三定律分配力：
-            // FIXME 如果使用硬截断，这种方式效率较低
-            forces[ip.a] -= force;  // 原子a受到指向原子b的力(负号因为力的方向)
-            forces[ip.b] += force;  // 原子b受到来自原子a的反作用力
-                                   // 注意：我们可以忽略不可移动原子上的力
+            forces[ip.a] -= force;
+            forces[ip.b] += force;
 		}
 	}
 	return e;

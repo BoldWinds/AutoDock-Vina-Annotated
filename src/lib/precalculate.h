@@ -67,7 +67,7 @@ public:
     /**
      * @brief 评估能量及其导数
      * @param r2 距离的平方
-     * @return pair<能量值, 对距离r的导数>
+     * @return pair<能量值, 对距离r的导数>；这个导数实际上是(dE/dr)/r
      * @note 先把r2变换为索引i1。实际上r2的位置在i1和i2之间，这时用p1和p2插值
      */
     pr eval_deriv(fl r2) const{

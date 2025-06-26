@@ -44,6 +44,13 @@ struct quasi_newton_aux {
 };
 
 /// @brief 执行BFGS拟牛顿优化算法，并设置构象和结合能
+///  @param m 模型对象: 用于计算能量和设置构象
+///  @param p 预计算的原子数据：用于计算能量
+///  @param ig 网格对象：用于计算能量
+///  @param out 输出类型，包含构象和能量
+///  @param g 变化对象，包含梯度信息，用于bfgs
+///  @param v 额外的向量参数：用于能量计算
+///  @param evalcount 评估计数器，记录能量计算次数
 void quasi_newton::operator()(model& m, const precalculate_byatom& p, const igrid& ig, output_type& out, change& g, const vec& v, int& evalcount) const { // g must have correct size
     quasi_newton_aux aux(&m, &p, &ig, v);
 
